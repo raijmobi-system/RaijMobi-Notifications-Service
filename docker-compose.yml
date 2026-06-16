@@ -1,0 +1,50 @@
+services:
+  zookeeper-notification:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    container_name: zookeeper-notification
+    networks:
+      - raijmobi-network
+
+  kafka-notification:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - zookeeper-notification
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper-notification:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-notification:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    container_name: kafka-notification
+    networks:
+      - raijmobi-network
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      sh -c "
+        python manage.py makemigrations notification_service --noinput &&
+        python manage.py migrate &&
+        python manage.py collectstatic --noinput &&
+        python manage.py start_kafka_consumer &
+        uvicorn core.asgi:application --host 0.0.0.0 --port 8000
+      "
+    ports:
+      - "8003:8000"                      # Ajuste a porta externa conforme necessário
+    depends_on:
+      - kafka-notification
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka-notification:9092
+    container_name: notification-service
+    networks:
+      - raijmobi-network
+
+networks:
+  raijmobi-network:
+    external: true

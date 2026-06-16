@@ -1,0 +1,5 @@
+confluent-kafka
+djangorestframework
+djangorestframework-simplejwt  # se usar JWT
+django
+uvicorn
