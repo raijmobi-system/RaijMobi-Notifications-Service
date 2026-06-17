@@ -1,26 +1,22 @@
-# Imagem base
 FROM python:3.11-slim
 
-# Variáveis de ambiente
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Diretório de trabalho
 WORKDIR /app
 
-# Copia requirements primeiro (melhor cache)
 COPY requirements.txt .
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Instala dependências
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
-
-# Copia o restante do projeto
 COPY . .
+
 RUN mkdir -p /app/media
 
-# Porta do Django
 EXPOSE 8000
 
-# Comando para rodar (será sobrescrito no docker-compose)
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["sh", "-c", "python manage.py makemigrations --noinput && \
+     python manage.py migrate --noinput && \
+     python manage.py collectstatic --noinput && \
+     python /app/notification_service/consumer.py --service ride & \
+     python /app/notification_service/consumer.py --service user & \
+     uvicorn core.asgi:application --host 0.0.0.0 --port 8000"]

@@ -1,20 +1,25 @@
-from django.shortcuts import render
-
-# Create your views here.
-from rest_framework import generics, permissions
+# notifications/views.py
+from rest_framework import generics
+from rest_framework.response import Response
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from .models import Notification
 from .serializers import NotificationSerializer
 
-class UserNotificationsView(generics.ListAPIView):
-    """
-    GET /api/notifications/?user_id=<uuid>
-    Retorna todas as notificações do usuário, ordenadas por data decrescente.
-    """
+class NotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer
-    permission_classes = [permissions.IsAuthenticated]  # se usar JWT
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        user_id = self.request.query_params.get('user_id')
-        if not user_id:
-            return Notification.objects.none()
-        return Notification.objects.filter(user_id=user_id)
+        return Notification.objects.filter(user=self.request.user)
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def mark_as_read(request, pk):
+    try:
+        notification = Notification.objects.get(pk=pk, user=request.user)
+        notification.read = True
+        notification.save()
+        return Response(NotificationSerializer(notification).data)
+    except Notification.DoesNotExist:
+        return Response({'error': 'Notificação não encontrada'}, status=404)

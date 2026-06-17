@@ -1,5 +1,5 @@
-confluent-kafka
+Django>=4.2,<5.0
 djangorestframework
-djangorestframework-simplejwt  # se usar JWT
-django
+djangorestframework-simplejwt
+confluent-kafka
 uvicorn
