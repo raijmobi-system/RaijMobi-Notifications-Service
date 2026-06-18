@@ -20,4 +20,5 @@ CMD ["sh", "-c", "python manage.py makemigrations --noinput && \
      python /app/notification_service/consumer.py --service ride & \
      python /app/notification_service/consumer.py --service user & \
      python /app/notification_service/consumer.py --service chat & \
+     python /app/notification_service/consumer.py --service user-events & \
      uvicorn core.asgi:application --host 0.0.0.0 --port 8000"]

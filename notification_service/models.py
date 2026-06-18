@@ -13,8 +13,10 @@ class UserManager(BaseUserManager):
         return self.create_user(id, username)  # não necessário
 
 class User(AbstractBaseUser):
-    id = models.CharField(max_length=255, primary_key=True)  # mesmo id dos outros serviços
+    id = models.CharField(max_length=255, primary_key=True)
     username = models.CharField(max_length=150, blank=True, default='')
+    email = models.EmailField(blank=True, null=True)      # novo
+    is_driver = models.BooleanField(default=False)        # novo
     created_at = models.DateTimeField(auto_now_add=True)
 
     USERNAME_FIELD = 'id'
