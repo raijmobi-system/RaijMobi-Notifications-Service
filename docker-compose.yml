@@ -5,11 +5,12 @@ services:
     ports:
       - "8005:8000"
     environment:
-      - SECRET_KEY=uma-chave-secreta-compartilhada
+      - SECRET_KEY=django-insecure-(x-9q@fyfpu&cc%0p7=0a+=5p_aa2m*###8w8xm&$p_ep$x4ks
       - KAFKA_BOOTSTRAP_SERVERS_RIDE=kafka-ride:9092
       - KAFKA_BOOTSTRAP_SERVERS_USER=kafka-user:9092
       - KAFKA_TOPICS_RIDE=ride_notifications
       - KAFKA_TOPICS_USER=user_notifications
+      - KAFKA_TOPICS_CHAT=chat_notifications
       - SERVICE_ORIGIN=notification-service
       - ALLOWED_HOSTS=*
     volumes:

@@ -24,7 +24,7 @@ def create_consumer(bootstrap_servers, group_id, topics):
     consumer.subscribe(topics)
     return consumer
 
-def process_message(msg):
+def process_message(msg,service):
     try:
         data = json.loads(msg.value().decode('utf-8'))
         user_id = data.get('user_id')
@@ -39,7 +39,7 @@ def process_message(msg):
         Notification.objects.create(
             user=user,
             message=message_text,
-            service_origin=os.environ.get('SERVICE_ORIGIN', 'unknown')
+            service_origin=service,   
         )
         print(f"Notificação criada para user {user_id}")
     except Exception as e:
@@ -54,8 +54,12 @@ def run_consumer(service):
         bootstrap = os.environ['KAFKA_BOOTSTRAP_SERVERS_USER']
         topics = os.environ.get('KAFKA_TOPICS_USER', 'user_notifications').split(',')
         group_id = 'notification-service-user'
+    elif service == 'chat':   # ← NOVO BLOCO
+        bootstrap = os.environ['KAFKA_BOOTSTRAP_SERVERS_USER']   # mesmo broker do user
+        topics = os.environ.get('KAFKA_TOPICS_CHAT', 'chat_notifications').split(',')
+        group_id = 'notification-service-chat'
     else:
-        print("Serviço desconhecido. Use --service ride|user")
+        print("Serviço desconhecido. Use --service ride|user|chat")
         sys.exit(1)
 
     consumer = create_consumer(bootstrap, group_id, topics)
@@ -79,12 +83,12 @@ def run_consumer(service):
                     continue
                 print(f"Erro Kafka: {msg.error()}")
                 continue
-            process_message(msg)
+            process_message(msg, service)
     finally:
         consumer.close()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--service', required=True, choices=['ride', 'user'])
+    parser.add_argument('--service', required=True, choices=['ride', 'user', 'chat'])
     args = parser.parse_args()
     run_consumer(args.service)
