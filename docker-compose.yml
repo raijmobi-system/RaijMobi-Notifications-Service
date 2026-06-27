@@ -1,25 +1,80 @@
 services:
+  # Aplicação principal (notificações/chat)
   notification-service:
     build: .
     container_name: notification-service
     ports:
       - "8005:8000"
     environment:
+      # Django
       - SECRET_KEY=django-insecure-(x-9q@fyfpu&cc%0p7=0a+=5p_aa2m*###8w8xm&$p_ep$x4ks
+      - DEBUG=True
+      - ALLOWED_HOSTS=*
+
+      # NOVO BANCO DE NOTIFICAÇÕES
+      - DB_NAME=raijmobi_notifications_db
+      - DB_USER=raijmobi_notifications
+      - DB_PASSWORD=raijmobi_pass
+      - DB_HOST=postgres-notifications
+      - DB_PORT=5432
+
+      # Kafka
       - KAFKA_BOOTSTRAP_SERVERS_RIDE=kafka-ride:9092
       - KAFKA_BOOTSTRAP_SERVERS_USER=kafka-user:9092
       - KAFKA_TOPICS_RIDE=ride_notifications
       - KAFKA_TOPICS_USER=user_notifications
       - KAFKA_TOPICS_CHAT=chat_notifications
       - SERVICE_ORIGIN=notification-service
-      - ALLOWED_HOSTS=*
+    depends_on:
+      postgres-notifications:
+        condition: service_healthy
     volumes:
-      - media_volume:/app/media   # apenas mídia, se necessário
+      - media_volume:/app/media
+    networks:
+      - raijmobi-network
+
+  # 🔹 NOVO BANCO EXCLUSIVO PARA NOTIFICAÇÕES
+  postgres-notifications:
+    image: postgres:15
+    container_name: postgres-notifications
+    environment:
+      - POSTGRES_DB=raijmobi_notifications_db
+      - POSTGRES_USER=raijmobi_notifications
+      - POSTGRES_PASSWORD=raijmobi_pass
+    volumes:
+      - postgres_notifications_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U raijmobi_notifications -d raijmobi_notifications_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - raijmobi-network
+
+  # Backup das notificações (agora apontando para o banco novo)
+  db-backup:
+    build:
+      context: ../RaijMobi-Services-postgres-backups/notifications-service
+      dockerfile: Dockerfile
+    container_name: postgres-notifications-db
+    environment:
+      - DB_HOST=postgres-notifications
+      - DB_PORT=5432
+      - DB_NAME=raijmobi_notifications_db
+      - DB_USER=raijmobi_notifications
+      - DB_PASSWORD=raijmobi_pass
+      - BACKUP_DIR=/backups
+      - BACKUP_INTERVAL_SECONDS=86400   # 24 horas
+      - TZ=America/Sao_Paulo
+    volumes:
+      - backup_notifications_data:/backups
     networks:
       - raijmobi-network
 
 volumes:
   media_volume:
+  postgres_notifications_data:
+  backup_notifications_data:
 
 networks:
   raijmobi-network:

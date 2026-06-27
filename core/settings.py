@@ -48,12 +48,25 @@ TEMPLATES = [
 ROOT_URLCONF = 'core.urls'
 
 # Banco SQLite dentro da pasta "data" que está mapeada no volume
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
+
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('DB_NAME', 'raijmobi_notifications_db'),
+        'USER': os.environ.get('DB_USER', 'raijmobi_notifications'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'raijmobi_pass'),
+        'HOST': os.environ.get('DB_HOST', 'postgres-notifications'),
+        'PORT': os.environ.get('DB_PORT', '5432'),
     }
 }
+
 
 AUTH_USER_MODEL = 'notification_service.User'
 
