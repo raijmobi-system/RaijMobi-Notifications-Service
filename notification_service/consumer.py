@@ -13,6 +13,7 @@ django.setup()
 
 from confluent_kafka import Consumer, KafkaError
 from notification_service.models import User, Notification
+from .metrics import notifications_read_total,notifications_from_chat_total,notifications_from_ride_total,notifications_from_user_total,notifications_sent_total
 
 def create_consumer(bootstrap_servers, group_id, topics):
     conf = {
@@ -60,6 +61,18 @@ def process_message(msg, service):
             message=message_text,
             service_origin=service,
         )
+
+        notifications_sent_total.inc()
+
+        if service == "ride":
+            notifications_from_ride_total.inc()
+
+        elif service == "user":
+            notifications_from_user_total.inc()
+
+        elif service == "chat":
+            notifications_from_chat_total.inc()
+
         print(f"Notificação criada para user {user_id}")
 
     except Exception as e:

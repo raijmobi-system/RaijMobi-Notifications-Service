@@ -17,6 +17,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'notification_service',
+    'django_prometheus',
 ]
 
 MIDDLEWARE = [
@@ -26,6 +27,9 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    "django_prometheus.middleware.PrometheusBeforeMiddleware",
+     "django_prometheus.middleware.PrometheusAfterMiddleware",
+
 ]
 
 
@@ -83,3 +87,5 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
