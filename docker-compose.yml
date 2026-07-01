@@ -1,177 +1,80 @@
 services:
-  zookeeper-user:
-    image: confluentinc/cp-zookeeper:7.5.0
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    container_name: zookeeper-user
-    networks:
-      - raijmobi-network
-
-  kafka-user:
-    image: confluentinc/cp-kafka:7.5.0
-    depends_on:
-      - zookeeper-user
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper-user:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-user:9092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-    container_name: kafka-user
-    networks:
-      - raijmobi-network
-
-  redis-user:
-    image: redis:alpine
-    container_name: redis-user
+  # Aplicação principal (notificações/chat)
+  notification-service:
+    build: .
+    container_name: notification-service
     ports:
-      - "6379:6379"
+      - "8005:8000"
+    environment:
+      # Django
+      - SECRET_KEY=django-insecure-WuvTjKXV2inFt1fhv3kna1gQuAGvL_nPdLjCZxLScKrbTGU-5x7qEh_VFxjoDFQkAl8
+      - DEBUG=True
+      - ALLOWED_HOSTS=*
+
+      # NOVO BANCO DE NOTIFICAÇÕES
+      - DB_NAME=raijmobi_notifications_db
+      - DB_USER=raijmobi_notifications
+      - DB_PASSWORD=raijmobi_pass
+      - DB_HOST=postgres-notifications
+      - DB_PORT=5432
+
+      # Kafka
+      - KAFKA_BOOTSTRAP_SERVERS_RIDE=kafka-ride:9092
+      - KAFKA_BOOTSTRAP_SERVERS_USER=kafka-user:9092
+      - KAFKA_TOPICS_RIDE=ride_notifications
+      - KAFKA_TOPICS_USER=user_notifications
+      - KAFKA_TOPICS_CHAT=chat_notifications
+      - SERVICE_ORIGIN=notification-service
+    depends_on:
+      postgres-notifications:
+        condition: service_healthy
+    volumes:
+      - media_volume:/app/media
     networks:
       - raijmobi-network
 
-  # 🔹 NOVO BANCO EXCLUSIVO PARA USER-SERVICE
-  postgres-user:
-    image: postgres:16-alpine
-    container_name: postgres-user
+  # 🔹 NOVO BANCO EXCLUSIVO PARA NOTIFICAÇÕES
+  postgres-notifications:
+    image: postgres:15
+    container_name: postgres-notifications
     environment:
-      - POSTGRES_DB=raijmobi_user_db
-      - POSTGRES_USER=raijmobi_user
-      - POSTGRES_PASSWORD=senha_segura
+      - POSTGRES_DB=raijmobi_notifications_db
+      - POSTGRES_USER=raijmobi_notifications
+      - POSTGRES_PASSWORD=raijmobi_pass
     volumes:
-      - postgres_user_data:/var/lib/postgresql/data
+      - postgres_notifications_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U raijmobi_user -d raijmobi_user_db"]
+      test: ["CMD-SHELL", "pg_isready -U raijmobi_notifications -d raijmobi_notifications_db"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       - raijmobi-network
 
-  user-service:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: user-service
-    ports:
-      - "8003:8000"
-    environment:
-      # Django
-      - SECRET_KEY=django-insecure-(x-9q@fyfpu&cc%0p7=0a+=5p_aa2m*###8w8xm&$p_ep$x4ks
-      - DEBUG=True
-      - ALLOWED_HOSTS=*
-
-      # Novo banco PostgreSQL
-      - DB_NAME=raijmobi_user_db
-      - DB_USER=raijmobi_user
-      - DB_PASSWORD=senha_segura
-      - DB_HOST=postgres-user
-      - DB_PORT=5432
-
-      # Kafka
-      - KAFKA_BOOTSTRAP_SERVERS=kafka-user:9092
-
-      # Redis / Celery / Resend
-      - CELERY_BROKER_URL=redis://redis-user:6379/0
-      - RESEND_API_KEY=${RESEND_API_KEY:-re_placeholder}
-
-      # Superuser
-      - DJANGO_SUPERUSER_EMAIL=pablo.murilo10@hotmail.com
-      - DJANGO_SUPERUSER_NOME=Admin
-      - DJANGO_SUPERUSER_PASSWORD=am@21star
-    depends_on:
-      postgres-user:
-        condition: service_healthy
-      kafka-user:
-        condition: service_started
-      redis-user:
-        condition: service_started
-    volumes:
-      - media_volume:/app/media
-    networks:
-      - raijmobi-network
-    command: >
-      sh -c "
-        python manage.py makemigrations user_service --noinput &&
-        python manage.py migrate &&
-        python manage.py migrate easyaudit --noinput &&
-        python manage.py createsuperuser --noinput || true &&
-        python manage.py collectstatic --noinput &&
-        uvicorn core.asgi:application --host 0.0.0.0 --port 8000
-      "
-
-  celery-worker-user:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: celery-worker-user
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka-user:9092
-      - ALLOWED_HOSTS=*
-      - CELERY_BROKER_URL=redis://redis-user:6379/0
-      - RESEND_API_KEY=${RESEND_API_KEY:-re_placeholder}
-      # O worker também precisa acessar o banco
-      - DB_NAME=raijmobi_user_db
-      - DB_USER=raijmobi_user
-      - DB_PASSWORD=senha_segura
-      - DB_HOST=postgres-user
-      - DB_PORT=5432
-    depends_on:
-      postgres-user:
-        condition: service_healthy
-      kafka-user:
-        condition: service_started
-      redis-user:
-        condition: service_started
-    networks:
-      - raijmobi-network
-    command: celery -A core worker --loglevel=info
-
-  # Backup do banco (opcional, segue o padrão)
+  # Backup das notificações
   db-backup:
     build:
-      context: ../RaijMobi-Services-postgres-backups/user-service   # Ajuste o caminho
+      context: ../RaijMobi-Services-postgres-backups/notifications-service
       dockerfile: Dockerfile
-    container_name: postgres-user-db-backup
+    container_name: postgres-notifications-db
     environment:
-      - DB_HOST=postgres-user
+      - DB_HOST=postgres-notifications
       - DB_PORT=5432
-      - DB_NAME=raijmobi_user_db
-      - DB_USER=raijmobi_user
-      - DB_PASSWORD=senha_segura
+      - DB_NAME=raijmobi_notifications_db
+      - DB_USER=raijmobi_notifications
+      - DB_PASSWORD=raijmobi_pass
       - BACKUP_DIR=/backups
-      - BACKUP_INTERVAL_SECONDS=86400
+      - BACKUP_INTERVAL_SECONDS=86400   # 24 horas
       - TZ=America/Sao_Paulo
     volumes:
-      - backup_user_data:/backups
-    networks:
-      - raijmobi-network
-
-  # Manutenção do banco (já existente, ajustado para o novo banco)
-  db-maintenance:
-    build:
-      context: ./maintenance
-      dockerfile: Dockerfile
-    container_name: postgres-user-maintenance
-    depends_on:
-      postgres-user:
-        condition: service_healthy
-    environment:
-      - DB_HOST=postgres-user
-      - DB_PORT=5432
-      - DB_NAME=raijmobi_user_db
-      - DB_USER=raijmobi_user
-      - DB_PASSWORD=senha_segura
-      - MAINTENANCE_INTERVAL_SECONDS=86400   # 24h
-      - TZ=America/Sao_Paulo
+      - backup_notifications_data:/backups
     networks:
       - raijmobi-network
 
 volumes:
-  postgres_user_data:
   media_volume:
-  backup_user_data:   # novo volume para backup
+  postgres_notifications_data:
+  backup_notifications_data:
 
 networks:
   raijmobi-network:
