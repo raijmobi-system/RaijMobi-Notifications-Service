@@ -138,3 +138,6 @@ GitHub.sublime-settings
 !.vscode/launch.json 
 !.vscode/extensions.json 
 .history
+notification_service_completo.txt
+unificado_notificacoes.txt
+notification_service_absoluto.txt
