@@ -1,24 +1,19 @@
 services:
-  # Aplicação principal (notificações/chat)
+  # Aplicação principal (API de notificações)
   notification-service:
     build: .
     container_name: notification-service
     ports:
       - "8005:8000"
     environment:
-      # Django
       - SECRET_KEY=django-insecure-WuvTjKXV2inFt1fhv3kna1gQuAGvL_nPdLjCZxLScKrbTGU-5x7qEh_VFxjoDFQkAl8
       - DEBUG=True
       - ALLOWED_HOSTS=*
-
-      # NOVO BANCO DE NOTIFICAÇÕES
       - DB_NAME=raijmobi_notifications_db
       - DB_USER=raijmobi_notifications
       - DB_PASSWORD=raijmobi_pass
       - DB_HOST=postgres-notifications
       - DB_PORT=5432
-
-      # Kafka
       - KAFKA_BOOTSTRAP_SERVERS_RIDE=kafka-ride:9092
       - KAFKA_BOOTSTRAP_SERVERS_USER=kafka-user:9092
       - KAFKA_TOPICS_RIDE=ride_notifications
@@ -33,7 +28,94 @@ services:
     networks:
       - raijmobi-network
 
-  # 🔹 NOVO BANCO EXCLUSIVO PARA NOTIFICAÇÕES
+  # 🔹 Consumer RIDE
+  notification-consumer-ride:
+    build: .
+    container_name: notification-consumer-ride
+    command: python -m notification_service.consumer --service ride
+    environment:
+      - SECRET_KEY=django-insecure-WuvTjKXV2inFt1fhv3kna1gQuAGvL_nPdLjCZxLScKrbTGU-5x7qEh_VFxjoDFQkAl8
+      - DEBUG=True
+      - DB_NAME=raijmobi_notifications_db
+      - DB_USER=raijmobi_notifications
+      - DB_PASSWORD=raijmobi_pass
+      - DB_HOST=postgres-notifications
+      - DB_PORT=5432
+      - KAFKA_BOOTSTRAP_SERVERS_RIDE=kafka-ride:9092
+      - KAFKA_TOPICS_RIDE=ride_notifications
+    depends_on:
+      postgres-notifications:
+        condition: service_healthy
+    networks:
+      - raijmobi-network
+    restart: unless-stopped
+
+  # 🔹 Consumer USER
+  notification-consumer-user:
+    build: .
+    container_name: notification-consumer-user
+    command: python -m notification_service.consumer --service user
+    environment:
+      - SECRET_KEY=django-insecure-WuvTjKXV2inFt1fhv3kna1gQuAGvL_nPdLjCZxLScKrbTGU-5x7qEh_VFxjoDFQkAl8
+      - DEBUG=True
+      - DB_NAME=raijmobi_notifications_db
+      - DB_USER=raijmobi_notifications
+      - DB_PASSWORD=raijmobi_pass
+      - DB_HOST=postgres-notifications
+      - DB_PORT=5432
+      - KAFKA_BOOTSTRAP_SERVERS_USER=kafka-user:9092
+      - KAFKA_TOPICS_USER=user_notifications
+    depends_on:
+      postgres-notifications:
+        condition: service_healthy
+    networks:
+      - raijmobi-network
+    restart: unless-stopped
+
+  # 🔹 Consumer CHAT
+  notification-consumer-chat:
+    build: .
+    container_name: notification-consumer-chat
+    command: python -m notification_service.consumer --service chat
+    environment:
+      - SECRET_KEY=django-insecure-WuvTjKXV2inFt1fhv3kna1gQuAGvL_nPdLjCZxLScKrbTGU-5x7qEh_VFxjoDFQkAl8
+      - DEBUG=True
+      - DB_NAME=raijmobi_notifications_db
+      - DB_USER=raijmobi_notifications
+      - DB_PASSWORD=raijmobi_pass
+      - DB_HOST=postgres-notifications
+      - DB_PORT=5432
+      - KAFKA_BOOTSTRAP_SERVERS_USER=kafka-user:9092
+      - KAFKA_TOPICS_CHAT=chat_notifications
+    depends_on:
+      postgres-notifications:
+        condition: service_healthy
+    networks:
+      - raijmobi-network
+    restart: unless-stopped
+
+  # 🔹 Consumer USER-EVENTS (sincroniza usuários)
+  notification-consumer-user-events:
+    build: .
+    container_name: notification-consumer-user-events
+    command: python -m notification_service.consumer --service user-events
+    environment:
+      - SECRET_KEY=django-insecure-WuvTjKXV2inFt1fhv3kna1gQuAGvL_nPdLjCZxLScKrbTGU-5x7qEh_VFxjoDFQkAl8
+      - DEBUG=True
+      - DB_NAME=raijmobi_notifications_db
+      - DB_USER=raijmobi_notifications
+      - DB_PASSWORD=raijmobi_pass
+      - DB_HOST=postgres-notifications
+      - DB_PORT=5432
+      - KAFKA_BOOTSTRAP_SERVERS_USER=kafka-user:9092
+    depends_on:
+      postgres-notifications:
+        condition: service_healthy
+    networks:
+      - raijmobi-network
+    restart: unless-stopped
+
+  # 🔹 Banco de dados
   postgres-notifications:
     image: postgres:15
     container_name: postgres-notifications
@@ -51,7 +133,7 @@ services:
     networks:
       - raijmobi-network
 
-  # Backup das notificações
+  # 🔹 Backup
   db-backup:
     build:
       context: ../RaijMobi-Services-postgres-backups/notifications-service
@@ -64,7 +146,7 @@ services:
       - DB_USER=raijmobi_notifications
       - DB_PASSWORD=raijmobi_pass
       - BACKUP_DIR=/backups
-      - BACKUP_INTERVAL_SECONDS=86400   # 24 horas
+      - BACKUP_INTERVAL_SECONDS=86400
       - TZ=America/Sao_Paulo
     volumes:
       - backup_notifications_data:/backups

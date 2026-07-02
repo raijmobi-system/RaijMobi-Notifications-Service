@@ -3,6 +3,7 @@ import sys
 import json
 import argparse
 import signal
+import time
 
 # Garante que a raiz do projeto está no PYTHONPATH
 sys.path.append('/app')
@@ -11,9 +12,40 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
 import django
 django.setup()
 
-from confluent_kafka import Consumer, KafkaError
+from confluent_kafka import Consumer, KafkaError, KafkaException
+from confluent_kafka.admin import AdminClient, NewTopic
 from notification_service.models import User, Notification
-from .metrics import notifications_read_total,notifications_from_chat_total,notifications_from_ride_total,notifications_from_user_total,notifications_sent_total
+from notification_service.metrics import (
+    notifications_read_total,
+    notifications_from_chat_total,
+    notifications_from_ride_total,
+    notifications_from_user_total,
+    notifications_sent_total,
+)
+
+
+def ensure_topics_exist(bootstrap_servers, topics):
+    """Garante que os tópicos existam no Kafka, criando-os se necessário."""
+    admin = AdminClient({'bootstrap.servers': bootstrap_servers})
+
+    # Tenta criar os tópicos; a API é idempotente, não lança erro se já existirem
+    new_topics = [NewTopic(topic, num_partitions=1, replication_factor=1) for topic in topics]
+    fs = admin.create_topics(new_topics)
+
+    for topic, f in fs.items():
+        try:
+            f.result()  # Aguarda a criação do tópico
+            print(f"Tópico '{topic}' disponível.")
+        except KafkaException as e:
+            if e.args[0].code() == KafkaError.TOPIC_ALREADY_EXISTS:
+                print(f"Tópico '{topic}' já existe.")
+            else:
+                # Outros erros podem ser temporários, tenta novamente
+                print(f"Erro ao criar tópico '{topic}': {e}. Tentando novamente...")
+                # Re-cria o AdminClient e tenta de novo (ou simplesmente continua, pois o subscribe pode funcionar mais tarde)
+                # Para manter a simplicidade, vamos logar e confiar no tratamento do poll
+                pass
+
 
 def create_consumer(bootstrap_servers, group_id, topics):
     conf = {
@@ -24,6 +56,7 @@ def create_consumer(bootstrap_servers, group_id, topics):
     consumer = Consumer(conf)
     consumer.subscribe(topics)
     return consumer
+
 
 def process_message(msg, service):
     try:
@@ -66,10 +99,8 @@ def process_message(msg, service):
 
         if service == "ride":
             notifications_from_ride_total.inc()
-
         elif service == "user":
             notifications_from_user_total.inc()
-
         elif service == "chat":
             notifications_from_chat_total.inc()
 
@@ -77,6 +108,7 @@ def process_message(msg, service):
 
     except Exception as e:
         print(f"Erro ao processar mensagem: {e}")
+
 
 def run_consumer(service):
     # Configuração do consumidor conforme o serviço
@@ -100,10 +132,14 @@ def run_consumer(service):
         print("Serviço desconhecido. Use --service ride|user|chat|user-events")
         sys.exit(1)
 
+    # Garante que os tópicos existam antes de criar o consumidor
+    print(f"Verificando/criando tópicos: {topics}")
+    ensure_topics_exist(bootstrap, topics)
+
     # Cria o consumidor
     consumer = create_consumer(bootstrap, group_id, topics)
 
-    # Define a função shutdown (deve ser definida ANTES de ser usada)
+    # Define a função shutdown
     def shutdown(sig, frame):
         print("Desligando consumer...")
         consumer.close()
@@ -123,11 +159,19 @@ def run_consumer(service):
             if msg.error():
                 if msg.error().code() == KafkaError._PARTITION_EOF:
                     continue
+                # Se ocorrer UNKNOWN_TOPIC_OR_PART após a criação, tenta recriar o consumidor
+                if msg.error().code() == KafkaError.UNKNOWN_TOPIC_OR_PART:
+                    print(f"Tópico ainda não disponível, recriando consumer...")
+                    consumer.close()
+                    time.sleep(5)
+                    consumer = create_consumer(bootstrap, group_id, topics)
+                    continue
                 print(f"Erro Kafka: {msg.error()}")
                 continue
             process_message(msg, service)
     finally:
         consumer.close()
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

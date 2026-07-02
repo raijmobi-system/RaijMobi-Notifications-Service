@@ -4,3 +4,5 @@ djangorestframework-simplejwt
 confluent-kafka
 uvicorn
 psycopg2-binary
+django-prometheus
+whitenoise        
