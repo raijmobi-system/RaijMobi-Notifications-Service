@@ -41,7 +41,8 @@ services:
       - DB_PASSWORD=raijmobi_pass
       - DB_HOST=postgres-notifications
       - DB_PORT=5432
-      - KAFKA_BOOTSTRAP_SERVERS_RIDE=kafka-ride:9092
+      - KAFKA_BOOTSTRAP_SERVERS_USER=kafka-user:9092
+      - KAFKA_BOOTSTRAP_SERVERS_CHAT=kafka-chat:9092 
       - KAFKA_TOPICS_RIDE=ride_notifications
     depends_on:
       postgres-notifications:
@@ -86,6 +87,7 @@ services:
       - DB_HOST=postgres-notifications
       - DB_PORT=5432
       - KAFKA_BOOTSTRAP_SERVERS_USER=kafka-user:9092
+      - KAFKA_BOOTSTRAP_SERVERS_CHAT=kafka-chat:9092 
       - KAFKA_TOPICS_CHAT=chat_notifications
     depends_on:
       postgres-notifications:

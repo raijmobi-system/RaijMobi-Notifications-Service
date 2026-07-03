@@ -121,7 +121,7 @@ def run_consumer(service):
         topics = os.environ.get('KAFKA_TOPICS_USER', 'user_notifications').split(',')
         group_id = 'notification-service-user'
     elif service == 'chat':
-        bootstrap = os.environ['KAFKA_BOOTSTRAP_SERVERS_USER']
+        bootstrap = os.environ['KAFKA_BOOTSTRAP_SERVERS_CHAT']  # variável específica
         topics = os.environ.get('KAFKA_TOPICS_CHAT', 'chat_notifications').split(',')
         group_id = 'notification-service-chat'
     elif service == 'user-events':
