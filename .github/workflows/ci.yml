@@ -20,11 +20,25 @@ jobs:
       - name: Create external network
         run: docker network create raijmobi-network || true
 
-      - name: Build all images (except backup)
-        run: docker compose build
+      - name: Build essential services (excluding backup)
+        run: |
+          docker compose build \
+            notification-service \
+            notification-consumer-ride \
+            notification-consumer-user \
+            notification-consumer-chat \
+            notification-consumer-user-events \
+            postgres-notifications
 
-      - name: Start services (without backup)
-        run: docker compose up -d
+      - name: Start essential services (excluding backup)
+        run: |
+          docker compose up -d \
+            notification-service \
+            notification-consumer-ride \
+            notification-consumer-user \
+            notification-consumer-chat \
+            notification-consumer-user-events \
+            postgres-notifications
 
       - name: Wait for PostgreSQL to be healthy
         run: |
