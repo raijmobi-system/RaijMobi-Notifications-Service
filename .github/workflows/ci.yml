@@ -17,13 +17,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Create external network (required by compose)
+      - name: Create external network
         run: docker network create raijmobi-network || true
 
-      - name: Build all images
+      - name: Build all images (except backup)
         run: docker compose build
 
-      - name: Start all services in background
+      - name: Start services (without backup)
         run: docker compose up -d
 
       - name: Wait for PostgreSQL to be healthy
@@ -39,7 +39,7 @@ jobs:
             fi
           done
 
-      - name: Wait for API service to respond (health check)
+      - name: Wait for API service to respond
         run: |
           echo "Waiting for notification-service on port 8005..."
           timeout=30
@@ -52,13 +52,13 @@ jobs:
             fi
           done
 
-      - name: Check if all containers are running
+      - name: Check running containers
         run: docker ps --filter "status=running" --format "table {{.Names}}\t{{.Status}}"
 
-      - name: Collect logs (for debugging if needed)
+      - name: Collect logs (if failure)
         if: always()
         run: docker compose logs --tail=50
 
-      - name: Stop and remove containers
+      - name: Stop containers
         if: always()
         run: docker compose down -v
